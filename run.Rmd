@@ -1,0 +1,150 @@
+```{r Environment Setup, include=FALSE}
+library(quantmod)
+options("getSymbols.warning4.0"=FALSE)
+
+library(FinancialInstrument)
+# The package as a whole is abbreviated as "FI" within this document.
+
+# Need to initialize FI for the current we care about.
+currency("USD")
+```
+# Financial Securities Summary
+* **By:** David G. Johnston (david.g.johnston@gmail.com)
+* **GitHub:** polobo/FinancialSecuritiesSummary
+
+## Purpose
+
+This document contains selected summary information and graphics
+for multiple user-specified securities.  Nothing particularly
+special and the only "quant" is the calculation of a 120-day moving
+average.  This may morph into something more useful than a daily
+report but for the moment that is the only goal.  I was getting annoyed
+at not having a compact form to view this information on a daily basis.
+
+## Limitations
+
+Name resolution is currently an in-progress work.  If the supplied security
+has a ticker symbol that Yahoo! can resolve a length-limited name will be
+returned by that service and the FinancialInstrument database addition
+should suceed with adding the security as a `stock` type.  This applies to
+at least some Vanguard mutual funds.
+
+Within the `updateFIDatabase` function you can add entries to a symbol/name
+override routine and these will then be displayed throughout the rest of the
+documentation.
+
+Spent way too much time trying to figure out how to suppress the `[1] "Symbol Name"`
+output from the Yahoo! meta-data lookup in FI.  Seems to an unfavorable interaction
+between `knitr` and `FinancialInstruments`.
+
+"USD" is hard-coded as the currency.
+
+```{r Functions, include=FALSE}
+# Print to output the supplied name and the most recent close and ema200
+# value from the full xts object passed to the function.
+# Called for its side-effects.
+printCloseVsEMA <- function(symbolName, closexts, ema200xts) {
+  # Pull out the last xts entry and also capture the numeric values
+  lastEMA200 <- last(ema200xts)
+  lastEMA200Value <- coredata(lastEMA200)
+  lastClose  <- last(closexts)
+  lastCloseValue <- coredata(lastClose)
+
+  # Proceed to write directly to output; including explicit newlines
+  cat(symbolName, "\n")
+  cat("EMA200:", round(lastEMA200, digits = 2), "\n")
+  cat("CLOSE :", lastClose) #intentional missing newline to append ratio on same line
+
+  # We express the ratio of the current close and ema200 values as a percentage
+  cat(" (", round((((lastCloseValue / lastEMA200Value) - 1) * 100), digits = 2), "% )")
+}
+
+# A helper function to invisibly update the names found within the
+# FI database for specific symbols.
+# Called for its side-effects.
+updateNameIfExists <- function(symbol, newName) {
+  # silently check for the symbol
+  if( instrumentExists(symbol) ) {
+    instrument_attr(symbol, "name", newName)
+  }
+}
+
+# Provide an "exists" function for FinancialInstrument since it doesn't
+instrumentExists <- function(instrumentName) {
+  fi <- getInstrument(instrumentName, silent=TRUE)
+  # FI is stupid!!! Instead of returning "NA" if a symbol does not exist
+  # instead it returns logical FALSE; but a found symbol returns a list.
+  # So we are forced to resort to type checking as a presence indicator.
+  # There does not appear to be a built-in "exists" function in FI
+  ifelse ( typeof(fi) == "logical", FALSE, TRUE )
+}
+
+# The quantmod package does not handle symbol labelling; only quantative data
+# So we construct an in-memory database of the symbols that are seen and
+# populate the symbol's meta-data within FinancialInstruments package.
+# Called for its side-effects.
+updateFIDatabase <- function(symbol) {
+  stock(symbol, "USD")
+
+  # TODO: this outputs [#] Name to output
+  # and while the normal suppression mechanics work interactively
+  # something about the interaction with knitr is causing it to appear
+  # in the result document no matter what I try surrounding the function
+  # call itself.
+  update_instruments.yahoo(symbol)
+
+  cat("Yahoo! Resolved", symbol, "to", print(getInstrument(symbol)$name), "\n")
+
+  # TODO: Yahoo! has a length limitation on the "name" attribute
+  # so we probably want to setup some kind of override map or
+  # choose a different meta-data service.
+  # NB: The searching is local and the number of entries is expected to be small
+  # so just do the FI-DB check on each new symbol for now.
+  updateNameIfExists("VCR", "Vangaurd Consumer Discretionary ETF [VCR]")
+}
+
+# Encapsulate the calculations and output desired for each
+# individual security.  This consists of both a textual summary
+# and one or more charts.
+# Called for its side-effects.
+displaySymbol <- function(symbol) {
+  symboldata <- getSymbols(symbol, env=NULL)
+
+  closexts  <- Cl(symboldata)
+  ema200xts <- EMA(closexts, n = 200)
+
+  updateFIDatabase(symbol)
+  printCloseVsEMA(getInstrument(symbol)$name, closexts, ema200xts)
+
+  chob <- chartSeries(symboldata, subset="last 36 months", plot=FALSE)
+  plot(addTA(ta = ema200xts, col=6, on=1))
+}
+```
+
+## Portfolio
+
+```{r Print Portfolio}
+# Here we actually identify the securities to print
+displaySymbol("VCR")
+displaySymbol("VFH")
+displaySymbol("VIS")
+```
+
+## Watch List
+
+```{r Print Watch List}
+displaySymbol("VNQ")
+displaySymbol("VAW")
+displaySymbol("VDE")
+displaySymbol("VOX")
+```
+
+## Summary
+
+Now that individual securities have been described we can gather up the contents
+of FinancialInstruments database and the attached attributes and xts objects to
+create an online table and/or a CSV file which can be copied into a custom Excel
+model for additional manipulation.  Eventually some of the Excel stuff will
+probably migrate to here...
+
+**Not Implemented Yet!**
