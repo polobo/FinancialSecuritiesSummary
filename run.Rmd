@@ -7,6 +7,10 @@ library(FinancialInstrument)
 
 # Need to initialize FI for the current we care about.
 currency("USD")
+
+library(envvar)
+#mailR_conf <- env_or_default("MAILR_CONF", "~/.mailR")
+#source(mailR_conf)
 ```
 # Financial Securities Summary
 * **By:** David G. Johnston (david.g.johnston@gmail.com)
@@ -117,6 +121,9 @@ displaySymbol <- function(symbol) {
   printCloseVsEMA(getInstrument(symbol)$name, closexts, ema200xts)
 
   chob <- chartSeries(symboldata, subset="last 36 months", plot=FALSE)
+  plot(addTA(ta = ema200xts, col=6, on=1))
+
+  chob <- chartSeries(symboldata, subset="last 14 days", plot=FALSE)
   plot(addTA(ta = ema200xts, col=6, on=1))
 }
 ```
